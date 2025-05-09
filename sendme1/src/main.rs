@@ -4,7 +4,7 @@ use anyhow::{ensure, Context, Result};
 use iroh::{protocol::Router, Endpoint};
 use iroh_blobs::{net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket, util::sink};
 use tracing::info;
-use util::create_send_dir;
+use util::{create_recv_dir, create_send_dir};
 
 mod util;
 
@@ -45,13 +45,13 @@ async fn share(path: PathBuf) -> Result<()> {
 
     let tag = blobs.add_path(&absolute_path).await?;
     let ticket = BlobTicket::new(addr, *tag.hash(), tag.format());
+    println!("Sharing file: {}", absolute_path.display());
     println!("Hash: {}", tag.hash());
     println!(
         "To receive, use: {} <target> {}",
         env::args().next().unwrap_or_default(),
         ticket
     );
-    println!("Sharing file: {}", absolute_path.display());
 
     // Create a router with the endpoint
     let router = Router::builder(ep.clone())
@@ -82,7 +82,7 @@ async fn receive(target: PathBuf, ticket: &str) -> Result<()> {
     info!("Connecting to: {:?}", ticket.node_addr());
 
     // Create a blob store
-    let blobs = FsStore::load(create_recv_dir(ticket.hash_and_format())?).await?;
+    let store = FsStore::load(create_recv_dir(ticket.hash_and_format())?).await?;
 
     // Create an endpoint
     let ep = Endpoint::builder()
@@ -96,14 +96,19 @@ async fn receive(target: PathBuf, ticket: &str) -> Result<()> {
         .connect(ticket.node_addr().clone(), iroh_blobs::ALPN)
         .await?;
     info!("Getting blob");
-    let stats = blobs
+    let stats = store
         .remote()
         .fetch(conn, ticket.clone(), sink::Drain)
         .await?;
     info!("Exporting file");
-    let size = blobs.export(ticket.hash(), target.clone()).await?;
+    let size = store.export(ticket.hash(), target.clone()).await?;
     info!("Exported file to {} with size: {}", target.display(), size);
     println!("Transfer stats: {:?}", stats);
+
+    // close the endpoint, just to be nice
+    ep.close().await;
+    // shutdown the store to sync to disk
+    store.shutdown().await?;
 
     Ok(())
 }

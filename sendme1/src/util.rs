@@ -2,6 +2,7 @@ use std::{env, path::PathBuf, str::FromStr};
 
 use anyhow::{Context, Result};
 use iroh_base::SecretKey;
+use iroh_blobs::HashAndFormat;
 use rand::{thread_rng, Rng};
 
 /// Gets a secret key from the IROH_SECRET environment variable or generates a new random one.
@@ -31,6 +32,12 @@ pub fn create_send_dir() -> Result<PathBuf> {
         );
         std::process::exit(1);
     }
+    Ok(blobs_data_dir)
+}
+
+pub fn create_recv_dir(content: HashAndFormat) -> Result<PathBuf> {
+    let cwd = std::env::current_dir()?;
+    let blobs_data_dir = cwd.join(format!(".{}-recv-{}", crate_name(), content));
     Ok(blobs_data_dir)
 }
 

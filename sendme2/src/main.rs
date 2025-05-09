@@ -48,13 +48,13 @@ async fn share(path: PathBuf) -> Result<()> {
 
     let tag = util::import(absolute_path.clone(), &blobs).await?;
     let ticket = BlobTicket::new(addr, *tag.hash(), tag.format());
+    println!("Sharing {}", absolute_path.display());
     println!("Hash: {}", tag.hash());
     println!(
         "To receive, use: {} receive {}",
         env::args().next().unwrap_or_default(),
         ticket
     );
-    println!("Sharing {}", absolute_path.display());
 
     // Create a router with the endpoint
     let router = Router::builder(ep.clone())
@@ -105,6 +105,10 @@ async fn receive(ticket: &str) -> Result<()> {
     let collection = Collection::load(ticket.hash(), store.deref()).await?;
     util::export(&store, collection).await?;
 
+    // close the endpoint, just to be nice
+    ep.close().await;
+    // shutdown the store to sync to disk
+    store.shutdown().await?;
     Ok(())
 }
 

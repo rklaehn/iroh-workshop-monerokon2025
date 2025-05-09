@@ -1,5 +1,7 @@
 use std::{
-    env, path::{Component, Path, PathBuf}, str::FromStr
+    env,
+    path::{Component, Path, PathBuf},
+    str::FromStr,
 };
 
 use anyhow::{Context, Result};
@@ -7,9 +9,13 @@ use futures::StreamExt;
 use iroh_base::SecretKey;
 use iroh_blobs::{
     api::{Store, TempTag},
-    format::collection::Collection, HashAndFormat,
+    format::collection::Collection,
+    provider::Event,
+    HashAndFormat,
 };
 use rand::{thread_rng, Rng};
+use tokio::sync::mpsc;
+use tracing::info;
 use walkdir::WalkDir;
 
 /// Gets a secret key from the IROH_SECRET environment variable or generates a new random one.
@@ -178,4 +184,60 @@ fn validate_path_component(component: &str) -> anyhow::Result<()> {
 
 pub fn crate_name() -> &'static str {
     env!("CARGO_CRATE_NAME")
+}
+
+pub fn dump_provider_events() -> (
+    tokio::task::JoinHandle<()>,
+    mpsc::Sender<iroh_blobs::provider::Event>,
+) {
+    let (tx, mut rx) = mpsc::channel(100);
+    let dump_task = tokio::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                Event::ClientConnected {
+                    node_id,
+                    connection_id,
+                    permitted,
+                } => {
+                    permitted.send(true).await.ok();
+                }
+                Event::GetRequestReceived {
+                    connection_id,
+                    request_id,
+                    hash,
+                    ranges,
+                } => {
+                    println!(
+                        "Get request received: {connection_id} {request_id} {hash} {ranges:?}"
+                    );
+                }
+                Event::TransferCompleted {
+                    connection_id,
+                    request_id,
+                    stats,
+                } => {
+                    println!("Transfer completed: {connection_id} {request_id} {stats:?}");
+                }
+                Event::TransferAborted {
+                    connection_id,
+                    request_id,
+                    stats,
+                } => {
+                    println!("Transfer aborted: {connection_id} {request_id} {stats:?}");
+                }
+                Event::TransferProgress {
+                    connection_id,
+                    request_id,
+                    index,
+                    end_offset,
+                } => {
+                    info!("Transfer progress: {connection_id} {request_id} {index} {end_offset}");
+                }
+                _ => {
+                    info!("Received event: {:?}", event);
+                }
+            }
+        }
+    });
+    (dump_task, tx)
 }

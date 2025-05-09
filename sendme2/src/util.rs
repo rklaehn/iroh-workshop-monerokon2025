@@ -9,7 +9,8 @@ use futures::StreamExt;
 use iroh_base::SecretKey;
 use iroh_blobs::{
     api::{Store, TempTag},
-    format::collection::Collection, HashAndFormat,
+    format::collection::Collection,
+    HashAndFormat,
 };
 use rand::{thread_rng, Rng};
 use walkdir::WalkDir;

@@ -4,7 +4,11 @@ use anyhow::{ensure, Context, Result};
 use futures::StreamExt;
 use iroh::{protocol::Router, Endpoint};
 use iroh_blobs::{
-    api::downloader::{DownloadOptions, DownloadRequest, SplitStrategy}, format::collection::Collection, net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket
+    api::downloader::{DownloadOptions, Shuffled, SplitStrategy},
+    format::collection::Collection,
+    net_protocol::Blobs,
+    store::fs::FsStore,
+    ticket::BlobTicket,
 };
 use tracing::info;
 use util::{create_recv_dir, create_send_dir};
@@ -48,17 +52,22 @@ async fn share(path: PathBuf) -> Result<()> {
 
     let tag = util::import(absolute_path.clone(), &blobs).await?;
     let ticket = BlobTicket::new(addr, *tag.hash(), tag.format());
+    println!("Sharing {}", absolute_path.display());
     println!("Hash: {}", tag.hash());
     println!(
         "To receive, use: {} receive {}",
         env::args().next().unwrap_or_default(),
         ticket
     );
-    println!("Sharing {}", absolute_path.display());
+
+    let (dump_task, dump_sender) = util::dump_provider_events();
 
     // Create a router with the endpoint
     let router = Router::builder(ep.clone())
-        .accept(iroh_blobs::ALPN, Blobs::new(&blobs, ep.clone(), None))
+        .accept(
+            iroh_blobs::ALPN,
+            Blobs::new(&blobs, ep.clone(), Some(dump_sender)),
+        )
         .spawn()
         .await?;
 
@@ -70,6 +79,9 @@ async fn share(path: PathBuf) -> Result<()> {
 
     // Gracefully shut down the router
     router.shutdown().await?;
+
+    // Abort the dump task
+    dump_task.abort();
 
     Ok(())
 }
@@ -119,7 +131,11 @@ async fn receive(tickets: Vec<String>) -> Result<()> {
     info!("Trying to get content from: {:?}", nodes);
     let downloader = store.downloader(&ep);
     info!("Getting hash sequence");
-    let options = DownloadOptions::new(content, nodes, SplitStrategy::Split);
+    let options = DownloadOptions::new(
+        content,
+        Shuffled::new(nodes.into_iter().collect()),
+        SplitStrategy::Split,
+    );
     // let mut stream = downloader.download(content, nodes).stream().await?;
     let mut stream = downloader.download_with_opts(options).stream().await?;
     while let Some(item) = stream.next().await {
@@ -130,6 +146,10 @@ async fn receive(tickets: Vec<String>) -> Result<()> {
     let collection = Collection::load(content.hash, store.deref()).await?;
     util::export(&store, collection).await?;
 
+    // close the endpoint, just to be nice
+    ep.close().await;
+    // shutdown the store to sync to disk
+    store.shutdown().await?;
     Ok(())
 }
 
