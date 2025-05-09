@@ -50,20 +50,19 @@ Uses iroh-blobs to send a directory, done as a protocol handler
 cargo run -p sendme2
 ```
 
-# Sendfile 3
+# Sendme 3
 
-Receive from multiple senders at the same time.
+Introducing the downloader. Receive from multiple senders at the same time.
 
 ```
 cargo run -p sendme3
 ```
 
-# Sendfile 4
+# Sendme 4
 
 Publish to a content discovery service, and use that service to find providers
 for the content on the receive side
 
-
 ```
-cargo run -p sendme3
+cargo run -p sendme4
 ```
