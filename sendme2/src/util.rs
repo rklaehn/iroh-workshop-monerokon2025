@@ -9,7 +9,7 @@ use futures::StreamExt;
 use iroh_base::SecretKey;
 use iroh_blobs::{
     api::{Store, TempTag},
-    format::collection::Collection,
+    format::collection::Collection, HashAndFormat,
 };
 use rand::{thread_rng, Rng};
 use walkdir::WalkDir;
@@ -30,10 +30,10 @@ pub fn get_or_generate_secret_key() -> Result<SecretKey> {
 }
 
 /// Create a unique directory for sending files.
-pub fn create_send_dir(prefix: &str) -> Result<PathBuf> {
+pub fn create_send_dir() -> Result<PathBuf> {
     let suffix = rand::thread_rng().gen::<[u8; 16]>();
     let cwd = std::env::current_dir()?;
-    let blobs_data_dir = cwd.join(format!("{prefix}-{}", hex::encode(suffix)));
+    let blobs_data_dir = cwd.join(format!(".{}-send-{}", crate_name(), hex::encode(suffix)));
     if blobs_data_dir.exists() {
         println!(
             "can not share twice from the same directory: {}",
@@ -41,6 +41,12 @@ pub fn create_send_dir(prefix: &str) -> Result<PathBuf> {
         );
         std::process::exit(1);
     }
+    Ok(blobs_data_dir)
+}
+
+pub fn create_recv_dir(content: HashAndFormat) -> Result<PathBuf> {
+    let cwd = std::env::current_dir()?;
+    let blobs_data_dir = cwd.join(format!(".{}-recv-{}", crate_name(), content));
     Ok(blobs_data_dir)
 }
 
@@ -111,7 +117,7 @@ pub async fn export(db: &Store, collection: Collection) -> Result<()> {
             eprintln!("You can remove the file or directory and try again. The download will not be repeated.");
             anyhow::bail!("target {} already exists", target.display());
         }
-         db.export(*hash, target).await?;
+        db.export(*hash, target).await?;
     }
     Ok(())
 }
@@ -177,4 +183,8 @@ fn validate_path_component(component: &str) -> anyhow::Result<()> {
         "path components must not contain the only correct path separator, /"
     );
     Ok(())
+}
+
+pub fn crate_name() -> &'static str {
+    env!("CARGO_CRATE_NAME")
 }

@@ -2,7 +2,7 @@ use std::{env, path::PathBuf, str::FromStr};
 
 use anyhow::{ensure, Context, Result};
 use iroh::{protocol::Router, Endpoint};
-use iroh_blobs::{net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket};
+use iroh_blobs::{net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket, util::sink};
 use tracing::info;
 use util::create_send_dir;
 
@@ -28,7 +28,7 @@ async fn share(path: PathBuf) -> Result<()> {
     let secret_key = util::get_or_generate_secret_key()?;
 
     // Create a blob store
-    let blobs = FsStore::load(create_send_dir(".sendme1-send")?).await?;
+    let blobs = FsStore::load(create_send_dir()?).await?;
 
     // Create an endpoint and print the node ID
     let ep = Endpoint::builder()
@@ -72,9 +72,9 @@ async fn share(path: PathBuf) -> Result<()> {
 }
 
 /// Client mode - receives a file
-async fn receive(target: PathBuf, addr_str: &str) -> Result<()> {
+async fn receive(target: PathBuf, ticket: &str) -> Result<()> {
     // Parse the address using NodeTicket
-    let ticket = BlobTicket::from_str(addr_str).context("invalid address")?;
+    let ticket = BlobTicket::from_str(ticket).context("invalid address")?;
 
     // Convert target path to absolute
     let target = env::current_dir()?.join(target);
@@ -82,7 +82,7 @@ async fn receive(target: PathBuf, addr_str: &str) -> Result<()> {
     info!("Connecting to: {:?}", ticket.node_addr());
 
     // Create a blob store
-    let blobs = FsStore::load("recv.db").await?;
+    let blobs = FsStore::load(create_recv_dir(ticket.hash_and_format())?).await?;
 
     // Create an endpoint
     let ep = Endpoint::builder()
@@ -96,7 +96,10 @@ async fn receive(target: PathBuf, addr_str: &str) -> Result<()> {
         .connect(ticket.node_addr().clone(), iroh_blobs::ALPN)
         .await?;
     info!("Getting blob");
-    let stats = blobs.remote().fetch(conn, ticket.clone(), iroh_blobs::util::sink::Drain).await?;
+    let stats = blobs
+        .remote()
+        .fetch(conn, ticket.clone(), sink::Drain)
+        .await?;
     info!("Exporting file");
     let size = blobs.export(ticket.hash(), target.clone()).await?;
     info!("Exported file to {} with size: {}", target.display(), size);
@@ -119,8 +122,8 @@ async fn main() -> Result<()> {
     } else if args.len() >= 3 {
         // Client mode - receive a file
         let target = PathBuf::from(&args[1]);
-        let addr_str = &args[2];
-        receive(target, addr_str).await
+        let ticket = &args[2];
+        receive(target, ticket).await
     } else {
         println!("Share/Receive a single file using BLAKE3 verified streaming");
         println!("Usage:");

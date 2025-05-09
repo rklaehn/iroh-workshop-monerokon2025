@@ -1,93 +1,135 @@
-use anyhow::{Context, Result};
-use iroh::{Endpoint, protocol::{ProtocolHandler, Router}};
-use iroh_base::ticket::NodeTicket;
-use iroh_blobs::{protocol::GetRequest, ticket::BlobTicket};
-use iroh_blobs::store::fs::FsStore;
-use iroh_blobs::net_protocol::Blobs;
-use std::{env, str::FromStr, path::PathBuf, sync::Arc};
+use std::{collections::BTreeSet, env, ops::Deref, path::PathBuf, process, str::FromStr};
+
+use anyhow::{ensure, Context, Result};
+use futures::StreamExt;
+use iroh::{protocol::Router, Endpoint};
+use iroh_blobs::{
+    api::downloader::{DownloadOptions, DownloadRequest, SplitStrategy}, format::collection::Collection, net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket
+};
 use tracing::info;
+use util::{create_recv_dir, create_send_dir};
 
 mod util;
 
-/// Server mode - shares a file
+/// Server mode - shares a file or directory
 async fn share(path: PathBuf) -> Result<()> {
     // Always convert to absolute path
     let absolute_path = env::current_dir()?.join(path);
-    
+
+    ensure!(
+        absolute_path.exists(),
+        "File does not exist: {}",
+        absolute_path.display()
+    );
+    ensure!(
+        absolute_path.is_dir() || absolute_path.is_file(),
+        "Not a file directory: {}",
+        absolute_path.display()
+    );
+
     // Get or generate a secret key
     let secret_key = util::get_or_generate_secret_key()?;
-    
+
     // Create a blob store
-    let blobs = FsStore::load("send.db").await?;
-    
+    let blobs = FsStore::load(create_send_dir()?).await?;
+
     // Create an endpoint and print the node ID
     let ep = Endpoint::builder()
         .alpns(vec![iroh_blobs::ALPN.to_vec()])
         .secret_key(secret_key)
         .bind()
         .await?;
-    
+
     let node_id = ep.node_id();
     let addr = ep.node_addr().await?;
-    let ticket = NodeTicket::from(addr.clone());
-    
+
     println!("Node ID: {}", node_id);
     println!("Full address: {:?}", addr);
-    println!("Ticket: {}", ticket);
-    println!("To receive, use: {} <target> {}", env::args().next().unwrap_or_default(), ticket);
-    println!("Sharing file: {}", absolute_path.display());
-    
-    let tag = blobs.add_path(absolute_path).await?;
+
+    let tag = util::import(absolute_path.clone(), &blobs).await?;
     let ticket = BlobTicket::new(addr, *tag.hash(), tag.format());
     println!("Hash: {}", tag.hash());
-    println!("Ticket: {}", ticket);
-    
+    println!(
+        "To receive, use: {} receive {}",
+        env::args().next().unwrap_or_default(),
+        ticket
+    );
+    println!("Sharing {}", absolute_path.display());
+
     // Create a router with the endpoint
     let router = Router::builder(ep.clone())
         .accept(iroh_blobs::ALPN, Blobs::new(&blobs, ep.clone(), None))
         .spawn()
         .await?;
-    
+
     println!("Server is running. Press Ctrl+C to stop...");
-    
+
     // Wait for Ctrl-C
     tokio::signal::ctrl_c().await?;
     println!("\nReceived Ctrl+C, shutting down...");
-    
+
     // Gracefully shut down the router
     router.shutdown().await?;
-    
+
     Ok(())
 }
 
 /// Client mode - receives a file
-async fn receive(target: PathBuf, addr_str: &str) -> Result<()> {
-    // Parse the address using NodeTicket
-    let ticket = BlobTicket::from_str(addr_str).context("invalid address")?;
-    
-    // Convert target path to absolute
-    let target = env::current_dir()?.join(target);
-    
-    info!("Connecting to: {:?}", ticket.node_addr());
-    
+async fn receive(tickets: Vec<String>) -> Result<()> {
+    // Parse the addresses using NodeTicket
+    let tickets = tickets
+        .iter()
+        .map(|ticket| BlobTicket::from_str(ticket).context("invalid address"))
+        .collect::<Result<Vec<_>>>()?;
+
+    ensure!(!tickets.is_empty(), "No tickets provided");
+
+    // get the content of the tickets. It must be the same for all tickets.
+    let content = tickets
+        .iter()
+        .map(|ticket| ticket.hash_and_format())
+        .collect::<BTreeSet<_>>();
+    ensure!(
+        content.len() == 1,
+        "All tickets must be for the same content"
+    );
+    let content = content.into_iter().next().unwrap();
+
+    // get the node addresses.
+    let nodes = tickets
+        .iter()
+        .map(|ticket| ticket.node_addr().node_id)
+        .collect::<BTreeSet<_>>();
+
     // Create a blob store
-    let blobs = FsStore::load("recv.db").await?;
-    
+    let store = FsStore::load(create_recv_dir(content)?).await?;
+
     // Create an endpoint
     let ep = Endpoint::builder()
         .alpns(vec![iroh_blobs::ALPN.to_vec()])
         .bind()
         .await?;
-    
+
+    // add the connection information contained in the tickets to the endpoint
+    for ticket in tickets {
+        ep.add_node_addr(ticket.node_addr().clone())?;
+    }
+
     // Connect to the node
-    info!("Connecting to: {:?}", ticket.node_addr());
-    let conn = ep.connect(ticket.node_addr().clone(), iroh_blobs::ALPN).await?;
-    info!("Getting blob");
-    let stats = blobs.remote().fetch(conn, ticket.clone(), iroh_blobs::util::sink::Drain).await?;
+    info!("Trying to get content from: {:?}", nodes);
+    let downloader = store.downloader(&ep);
+    info!("Getting hash sequence");
+    let options = DownloadOptions::new(content, nodes, SplitStrategy::Split);
+    // let mut stream = downloader.download(content, nodes).stream().await?;
+    let mut stream = downloader.download_with_opts(options).stream().await?;
+    while let Some(item) = stream.next().await {
+        println!("Received: {:?}", item);
+    }
+    store.dump().await?;
     info!("Exporting file");
-    let size = blobs.export(ticket.hash(), target.clone()).await?;
-    info!("Exported file to {} with size: {}", target.display(), size);
-    
+    let collection = Collection::load(content.hash, store.deref()).await?;
+    util::export(&store, collection).await?;
+
     Ok(())
 }
 
@@ -97,20 +139,24 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let args: Vec<String> = env::args().collect();
-
-    if args.len() == 2 {
-        // Server mode - share a file
-        let path = PathBuf::from(&args[1]);
-        share(path).await
-    } else if args.len() >= 3 {
-        // Client mode - receive a file
-        let target = PathBuf::from(&args[1]);
-        let addr_str = &args[2];
-        receive(target, addr_str).await
-    } else {
-        println!("Usage:");
-        println!("  Share mode: {} <file_path>", args[0]);
-        println!("  Receive mode: {} <target> <address>", args[0]);
-        Ok(())
+    let cmd = args.get(1).map(|x| x.to_lowercase()).unwrap_or_default();
+    match cmd.as_str() {
+        "share" if args.len() == 3 => {
+            // Server mode - share a file or directory
+            let path = PathBuf::from(&args[2]);
+            share(path).await
+        }
+        "receive" | "recv" if args.len() >= 3 => {
+            // Client mode - receive a file or directory
+            let tickets = args.iter().skip(2).cloned().collect::<Vec<_>>();
+            receive(tickets).await
+        }
+        _ => {
+            println!("Usage: sendme2 <command> [args]");
+            println!("Commands:");
+            println!("  share <dir_path>   Share a directory");
+            println!("  receive <ticket>   Receive a directory");
+            process::exit(1);
+        }
     }
-} 
+}

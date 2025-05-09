@@ -2,13 +2,16 @@ use std::{env, ops::Deref, path::PathBuf, process, str::FromStr};
 
 use anyhow::{ensure, Context, Result};
 use iroh::{protocol::Router, Endpoint};
-use iroh_blobs::{format::collection::Collection, net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket};
+use iroh_blobs::{
+    format::collection::Collection, net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket,
+    util::sink,
+};
 use tracing::info;
-use util::create_send_dir;
+use util::{crate_name, create_recv_dir, create_send_dir};
 
 mod util;
 
-/// Server mode - shares a file
+/// Server mode - shares a file or directory
 async fn share(path: PathBuf) -> Result<()> {
     // Always convert to absolute path
     let absolute_path = env::current_dir()?.join(path);
@@ -19,8 +22,8 @@ async fn share(path: PathBuf) -> Result<()> {
         absolute_path.display()
     );
     ensure!(
-        absolute_path.is_dir(),
-        "Not a file: {}",
+        absolute_path.is_dir() || absolute_path.is_file(),
+        "Not a file directory: {}",
         absolute_path.display()
     );
 
@@ -28,7 +31,7 @@ async fn share(path: PathBuf) -> Result<()> {
     let secret_key = util::get_or_generate_secret_key()?;
 
     // Create a blob store
-    let blobs = FsStore::load(create_send_dir(".sendme2-send")?).await?;
+    let blobs = FsStore::load(create_send_dir()?).await?;
 
     // Create an endpoint and print the node ID
     let ep = Endpoint::builder()
@@ -51,7 +54,7 @@ async fn share(path: PathBuf) -> Result<()> {
         env::args().next().unwrap_or_default(),
         ticket
     );
-    println!("Sharing file: {}", absolute_path.display());
+    println!("Sharing {}", absolute_path.display());
 
     // Create a router with the endpoint
     let router = Router::builder(ep.clone())
@@ -72,14 +75,14 @@ async fn share(path: PathBuf) -> Result<()> {
 }
 
 /// Client mode - receives a file
-async fn receive(addr_str: &str) -> Result<()> {
+async fn receive(ticket: &str) -> Result<()> {
     // Parse the address using NodeTicket
-    let ticket = BlobTicket::from_str(addr_str).context("invalid address")?;
+    let ticket = BlobTicket::from_str(ticket).context("invalid address")?;
 
     info!("Connecting to: {:?}", ticket.node_addr());
 
     // Create a blob store
-    let store = FsStore::load(format!(".sendme2-recv-{}", ticket.hash())).await?;
+    let store = FsStore::load(create_recv_dir(ticket.hash_and_format())?).await?;
 
     // Create an endpoint
     let ep = Endpoint::builder()
@@ -92,8 +95,11 @@ async fn receive(addr_str: &str) -> Result<()> {
     let conn = ep
         .connect(ticket.node_addr().clone(), iroh_blobs::ALPN)
         .await?;
-    info!("Getting blob");
-    let stats = store.remote().fetch(conn, ticket.clone(), iroh_blobs::util::sink::Drain).await?;
+    info!("Getting hash sequence");
+    let stats = store
+        .remote()
+        .fetch(conn, ticket.clone(), sink::Drain)
+        .await?;
     println!("Transfer stats: {:?}", stats);
     info!("Exporting file");
     let collection = Collection::load(ticket.hash(), store.deref()).await?;
@@ -111,17 +117,17 @@ async fn main() -> Result<()> {
     let cmd = args.get(1).map(|x| x.to_lowercase()).unwrap_or_default();
     match cmd.as_str() {
         "share" if args.len() == 3 => {
-            // Server mode - share a file
+            // Server mode - share a file or directory
             let path = PathBuf::from(&args[2]);
             share(path).await
         }
         "receive" | "recv" if args.len() == 3 => {
-            // Client mode - receive a file
-            let addr_str = &args[2];
-            receive(addr_str).await
+            // Client mode - receive a file or directory
+            let ticket = &args[2];
+            receive(ticket).await
         }
         _ => {
-            println!("Usage: sendme2 <command> [args]");
+            println!("Usage: {} <command> [args]", crate_name());
             println!("Commands:");
             println!("  share <dir_path>   Share a directory");
             println!("  receive <ticket>   Receive a directory");
@@ -129,4 +135,3 @@ async fn main() -> Result<()> {
         }
     }
 }
-

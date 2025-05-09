@@ -1,10 +1,7 @@
 use std::{env, process, str::FromStr};
 
 use anyhow::{Context, Result};
-use iroh::{
-    protocol::Router,
-    Endpoint,
-};
+use iroh::{protocol::Router, Endpoint};
 use iroh_base::ticket::NodeTicket;
 use tokio::signal;
 use tracing::info;
@@ -56,9 +53,9 @@ async fn accept() -> Result<()> {
 }
 
 /// Client mode - connects to a server and sends a message
-async fn connect(message: &str, addr_str: &str) -> Result<()> {
+async fn connect(message: &str, ticket: &str) -> Result<()> {
     // Parse the address using NodeTicket
-    let ticket = NodeTicket::from_str(addr_str).context("invalid address")?;
+    let ticket = NodeTicket::from_str(ticket).context("invalid address")?;
 
     info!("Connecting to: {:?}", ticket.node_addr());
 
@@ -103,10 +100,11 @@ async fn main() -> Result<()> {
     let cmd = args.get(1).map(|x| x.to_lowercase()).unwrap_or_default();
     match cmd.as_str() {
         "accept" if args.len() == 2 => {
+            // server mode - accept connections
             accept().await
         }
         "connect" if args.len() == 4 => {
-            // Client mode - receive a file
+            // Client mode - connect to a server and send a message
             let message = &args[2];
             let ticket = &args[3];
             connect(message, ticket).await

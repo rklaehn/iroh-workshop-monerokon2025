@@ -5,6 +5,7 @@ members = [
     "echo2",
     "sendme1",
     "sendme2",
+    "sendme3",
 ]
 
 # Optional: Add a resolver to ensure consistent dependency versions

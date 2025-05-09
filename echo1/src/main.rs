@@ -110,10 +110,11 @@ async fn main() -> Result<()> {
     let cmd = args.get(1).map(|x| x.to_lowercase()).unwrap_or_default();
     match cmd.as_str() {
         "accept" if args.len() == 2 => {
+            // Server mode - accept connections
             accept().await
         }
         "connect" if args.len() == 4 => {
-            // Client mode - receive a file
+            // Client mode - connect to a server and send a message
             let message = &args[2];
             let ticket = &args[3];
             connect(message, ticket).await

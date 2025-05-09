@@ -1724,7 +1724,7 @@ dependencies = [
 [[package]]
 name = "iroh-blobs"
 version = "0.1.0"
-source = "git+https://github.com/n0-computer/blobs2#ae38d0d84295813201c54a707e585ed912b52d78"
+source = "git+https://github.com/n0-computer/blobs2#9d0fccd45e5481678c792d173959596326a1a2c6"
 dependencies = [
  "anyhow",
  "arrayvec",
@@ -3458,6 +3458,25 @@ dependencies = [
 
 [[package]]
 name = "sendme2"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.21.7",
+ "futures",
+ "hex",
+ "iroh",
+ "iroh-base",
+ "iroh-blobs",
+ "num_cpus",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "walkdir",
+]
+
+[[package]]
+name = "sendme3"
 version = "0.1.0"
 dependencies = [
  "anyhow",

@@ -20,10 +20,10 @@ pub fn get_or_generate_secret_key() -> Result<SecretKey> {
 }
 
 /// Create a unique directory for sending files.
-pub fn create_send_dir(prefix: &str) -> Result<PathBuf> {
+pub fn create_send_dir() -> Result<PathBuf> {
     let suffix = rand::thread_rng().gen::<[u8; 16]>();
     let cwd = std::env::current_dir()?;
-    let blobs_data_dir = cwd.join(format!("{prefix}-{}", hex::encode(suffix)));
+    let blobs_data_dir = cwd.join(format!(".{}-send-{}", crate_name(), hex::encode(suffix)));
     if blobs_data_dir.exists() {
         println!(
             "can not share twice from the same directory: {}",
@@ -32,4 +32,8 @@ pub fn create_send_dir(prefix: &str) -> Result<PathBuf> {
         std::process::exit(1);
     }
     Ok(blobs_data_dir)
+}
+
+pub fn crate_name() -> &'static str {
+    env!("CARGO_CRATE_NAME")
 }
