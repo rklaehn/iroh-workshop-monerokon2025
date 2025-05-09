@@ -1,15 +1,14 @@
 [package]
-name = "lesson3"
+name = "echo2"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 iroh = { version = "0.34.1", features = ["metrics"] }
 iroh-base = "0.34.1"
-iroh-blobs = { git = "https://github.com/n0-computer/blobs2" }
 tokio = { version = "1.0", features = ["full"] }
 anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 base64 = "0.21"
-rand = "0.8.5" 
+rand = "0.8.5"

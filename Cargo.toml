@@ -1,9 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "lesson1",
-    "lesson2",
-    "lesson3"
+    "echo1",
+    "echo2",
+    "sendme1",
+    "sendme2",
 ]
 
 # Optional: Add a resolver to ensure consistent dependency versions
