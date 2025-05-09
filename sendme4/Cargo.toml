@@ -1,0 +1,20 @@
+[package]
+name = "sendme4"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iroh = { version = "0.34.1", features = ["metrics"] }
+iroh-base = "0.34.1"
+iroh-blobs = { path = "../../blobs2" }
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+base64 = "0.21"
+rand = "0.8.5" 
+hex = "0.4.3"
+num_cpus = "1.16.0"
+walkdir = "2.5.0"
+futures = "0.3.31"
+iroh-mainline-content-discovery = "0.6.0"

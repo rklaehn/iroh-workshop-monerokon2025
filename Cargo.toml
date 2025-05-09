@@ -6,6 +6,7 @@ members = [
     "sendme1",
     "sendme2",
     "sendme3",
+    "sendme4",
 ]
 
 # Optional: Add a resolver to ensure consistent dependency versions
