@@ -34,6 +34,7 @@ async fn accept() -> Result<()> {
         env::args().next().unwrap_or_default(),
         ticket
     );
+    println!("inspect ticket at https://ticket.iroh.computer/\n");
 
     // Accept a connection
     info!("Waiting for connections");

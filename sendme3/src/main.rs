@@ -59,6 +59,7 @@ async fn share(path: PathBuf) -> Result<()> {
         env::args().next().unwrap_or_default(),
         ticket
     );
+    println!();
 
     let (dump_task, dump_sender) = util::dump_provider_events();
 
@@ -141,7 +142,6 @@ async fn receive(tickets: Vec<String>) -> Result<()> {
     while let Some(item) = stream.next().await {
         println!("Received: {:?}", item);
     }
-    store.dump().await?;
     info!("Exporting file");
     let collection = Collection::load(content.hash, store.deref()).await?;
     util::export(&store, collection).await?;

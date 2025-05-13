@@ -55,6 +55,7 @@ async fn share(path: PathBuf) -> Result<()> {
         env::args().next().unwrap_or_default(),
         ticket
     );
+    println!();
 
     // Create a router with the endpoint
     let router = Router::builder(ep.clone())

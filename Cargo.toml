@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "echo1",
     "echo2",
+    "echo3",
     "sendme1",
     "sendme2",
     "sendme3",

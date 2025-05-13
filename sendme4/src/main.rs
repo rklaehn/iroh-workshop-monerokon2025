@@ -98,6 +98,7 @@ async fn share(path: PathBuf) -> Result<()> {
         env::args().next().unwrap_or_default(),
         ticket.hash_and_format(),
     );
+    println!();
 
     let (dump_task, dump_sender) = util::dump_provider_events();
 
@@ -147,14 +148,13 @@ async fn receive(content: &str) -> Result<()> {
     let options = DownloadOptions::new(
         content,
         TrackerDiscovery::new(ep.clone(), TRACKER.parse()?),
-        SplitStrategy::Split,
+        SplitStrategy::None,
     );
     // let mut stream = downloader.download(content, nodes).stream().await?;
     let mut stream = downloader.download_with_opts(options).stream().await?;
     while let Some(item) = stream.next().await {
         println!("Received: {:?}", item);
     }
-    store.dump().await?;
     info!("Exporting file");
     let collection = Collection::load(content.hash, store.deref()).await?;
     util::export(&store, collection).await?;

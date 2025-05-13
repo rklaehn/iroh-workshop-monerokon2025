@@ -1,10 +1,10 @@
-use std::{env, path::PathBuf, str::FromStr};
+use std::{env, path::PathBuf, process, str::FromStr};
 
 use anyhow::{ensure, Context, Result};
 use iroh::{protocol::Router, Endpoint};
 use iroh_blobs::{net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket, util::sink};
 use tracing::info;
-use util::{create_recv_dir, create_send_dir};
+use util::{crate_name, create_recv_dir, create_send_dir};
 
 mod util;
 
@@ -48,10 +48,11 @@ async fn share(path: PathBuf) -> Result<()> {
     println!("Sharing file: {}", absolute_path.display());
     println!("Hash: {}", tag.hash());
     println!(
-        "To receive, use: {} <target> {}",
+        "To receive, use: {} receive <target> {}",
         env::args().next().unwrap_or_default(),
         ticket
     );
+    println!();
 
     // Create a router with the endpoint
     let router = Router::builder(ep.clone())
@@ -72,7 +73,8 @@ async fn share(path: PathBuf) -> Result<()> {
 }
 
 /// Client mode - receives a file
-async fn receive(target: PathBuf, ticket: &str) -> Result<()> {
+async fn receive(target: &str, ticket: &str) -> Result<()> {
+    let target = PathBuf::from(target);
     // Parse the address using NodeTicket
     let ticket = BlobTicket::from_str(ticket).context("invalid address")?;
 
@@ -119,21 +121,25 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let args: Vec<String> = env::args().collect();
-
-    if args.len() == 2 {
-        // Server mode - share a file
-        let path = PathBuf::from(&args[1]);
-        share(path).await
-    } else if args.len() >= 3 {
-        // Client mode - receive a file
-        let target = PathBuf::from(&args[1]);
-        let ticket = &args[2];
-        receive(target, ticket).await
-    } else {
-        println!("Share/Receive a single file using BLAKE3 verified streaming");
-        println!("Usage:");
-        println!("  Share mode: {} <file_path>", args[0]);
-        println!("  Receive mode: {} <target> <ticket>", args[0]);
-        Ok(())
+    let cmd = args.get(1).map(|x| x.to_lowercase()).unwrap_or_default();
+    match cmd.as_str() {
+        "share" if args.len() == 3 => {
+            // Server mode - share a file or directory
+            let path = PathBuf::from(&args[2]);
+            share(path).await
+        }
+        "receive" | "recv" if args.len() == 4 => {
+            // Client mode - receive a file or directory
+            let path = &args[2];
+            let ticket = &args[3];
+            receive(path, ticket).await
+        }
+        _ => {
+            println!("Usage: {} <command> [args]", crate_name());
+            println!("Commands:");
+            println!("  share <file_path>             Share a file");
+            println!("  receive <file_path> <ticket>  Receive a directory");
+            process::exit(1);
+        }
     }
 }

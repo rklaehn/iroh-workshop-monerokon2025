@@ -1,10 +1,11 @@
 use std::{env, process, str::FromStr};
 
 use anyhow::{Context, Result};
-use iroh::{protocol::Router, Endpoint};
+use iroh::{discovery, protocol::Router, Endpoint, NodeAddr};
 use iroh_base::ticket::NodeTicket;
 use tokio::signal;
 use tracing::info;
+use util::z32_node_id;
 
 mod echo;
 mod util;
@@ -18,22 +19,33 @@ async fn accept() -> Result<()> {
     let ep = Endpoint::builder()
         .alpns(vec![echo::ECHO_ALPN.to_vec()])
         .secret_key(secret_key)
+        .discovery_n0()
+        .discovery_dht()
         .bind()
         .await?;
 
     let node_id = ep.node_id();
     let addr = ep.node_addr().await?;
     let ticket = NodeTicket::from(addr.clone());
+    let ticket_short = NodeTicket::from(NodeAddr::from(addr.node_id));
 
     println!("Node ID: {}", node_id);
     println!("Full address: {:?}", addr);
     println!("Ticket: {}", ticket);
+    println!("Short ticket: {}", ticket_short);
     println!(
         "To connect, use: {} connect <message> {}",
         env::args().next().unwrap_or_default(),
         ticket
     );
-    println!("inspect ticket at https://ticket.iroh.computer/\n");
+    println!("To see the info published on DNS, run:");
+    println!(
+        "dig TXT @dns.iroh.link _iroh.{}.{}",
+        z32_node_id(&addr.node_id),
+        "dns.iroh.link"
+    );
+    println!("To see the info published on the mainline DHT, open:");
+    println!("https://app.pkarr.org/?pk={}", z32_node_id(&addr.node_id));
 
     // Create a router with the endpoint
     let router = Router::builder(ep)
@@ -61,7 +73,12 @@ async fn connect(message: &str, ticket: &str) -> Result<()> {
     info!("Connecting to: {:?}", ticket.node_addr());
 
     // Create an endpoint
-    let ep = Endpoint::builder().bind().await?;
+    //
+    // only resolve discovery, don't publish
+    let ep = Endpoint::builder()
+        .add_discovery(|_| Some(discovery::pkarr::PkarrResolver::n0_dns()))
+        .add_discovery(|_| discovery::pkarr::dht::DhtDiscovery::builder().build().ok())
+        .bind().await?;
 
     // Connect to the node
     let conn = ep.connect(ticket, echo::ECHO_ALPN).await?;
