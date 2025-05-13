@@ -34,6 +34,14 @@ Echo service from before, but done as a iroh protocol handler
 cargo run -p echo2
 ```
 
+# Echo 3
+
+Echo service from before, but show intricacies of node discovery
+
+```
+cargo run -p echo3
+```
+
 # Sendme 1
 
 Uses iroh-blobs to send a single file, done as an iroh protocol handler
