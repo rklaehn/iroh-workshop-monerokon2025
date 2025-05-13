@@ -200,6 +200,7 @@ pub fn dump_provider_events() -> (
                     permitted,
                 } => {
                     permitted.send(true).await.ok();
+                    println!("Client connected: {node_id} {connection_id}");
                 }
                 Event::GetRequestReceived {
                     connection_id,

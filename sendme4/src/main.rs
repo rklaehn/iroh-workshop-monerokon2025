@@ -12,7 +12,7 @@ use iroh_blobs::{
     HashAndFormat,
 };
 use iroh_mainline_content_discovery::protocol::{
-    AbsoluteTime, Announce, AnnounceKind, Query, QueryFlags, SignedAnnounce,
+    AbsoluteTime, Announce, AnnounceKind, SignedAnnounce,
 };
 use tracing::{info, trace, warn};
 use util::{create_recv_dir, create_send_dir, TrackerDiscovery};
