@@ -35,7 +35,6 @@ async fn share(path: PathBuf) -> Result<()> {
 
     // Create an endpoint and print the node ID
     let ep = Endpoint::builder()
-        .alpns(vec![iroh_blobs::ALPN.to_vec()])
         .secret_key(secret_key)
         .bind()
         .await?;
