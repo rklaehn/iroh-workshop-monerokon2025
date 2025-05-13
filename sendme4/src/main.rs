@@ -12,12 +12,15 @@ use iroh_blobs::{
 };
 use iroh_mainline_content_discovery::protocol::{AbsoluteTime, Announce, AnnounceKind, Query, QueryFlags, SignedAnnounce};
 use tracing::{info, trace, warn};
-use util::{create_recv_dir, create_send_dir};
+use util::{create_recv_dir, create_send_dir, TrackerDiscovery};
 
 mod util;
 
 /// node ticket for the tracker
-const TRACKER: &str = "b223f67b76e1853c7f76d9a9f8ce4d8dbb04a48ad9631ce52347043388475767";
+/// local
+/// const TRACKER: &str = "b223f67b76e1853c7f76d9a9f8ce4d8dbb04a48ad9631ce52347043388475767";
+/// arqu
+const TRACKER: &str = "69b2f535d5792b50599b51990963e0cca1041679cd968563a8bc3179a7c42e67";
 
 /// periodically announce the content to the tracker
 async fn announce_task(content: HashAndFormat, ep: Endpoint, secret_key: SecretKey) -> Result<()> {
@@ -123,64 +126,6 @@ async fn share(path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug)]
-struct TrackerDiscovery {
-    endpoint: Endpoint,
-    tracker: NodeId,
-}
-
-impl TrackerDiscovery {
-    fn new(endpoint: Endpoint, tracker: NodeId) -> Self {
-        Self { endpoint, tracker }
-    }
-}
-
-impl iroh_blobs::api::downloader::ContentDiscovery for TrackerDiscovery {
-    fn find_providers(&self, content: HashAndFormat) -> futures::stream::BoxStream<'static, NodeId> {
-        let content = content.to_string();
-        let (tx, rx) = tokio::sync::mpsc::channel(10);
-        let ep = self.endpoint.clone();
-        let tracker = self.tracker.clone();
-        tokio::spawn(async move {
-            loop {
-                println!("Connecting to tracker: {}", tracker);
-                let Ok(conn) = ep.connect(tracker, iroh_mainline_content_discovery::protocol::ALPN).await else {
-                    println!("Failed to connect to tracker");
-                    tokio::time::sleep(Duration::from_secs(5)).await;
-                    continue;
-                };
-                let query = Query {
-                    content: content.parse().unwrap(),
-                    flags: QueryFlags { complete: true, verified: true },
-                };
-                println!("Querying tracker: {:?}", query);
-                match iroh_mainline_content_discovery::query_iroh(conn, query).await {
-                    Ok(result) => {
-                        println!("Received query result: {:?}", result);
-                        for announce in result.hosts {
-                            if tx.send(announce.host).await.is_err() {
-                                break;
-                            }
-                        }
-                    }
-                    Err(cause) => {
-                        println!("Failed to send query {:?}", cause);
-                        tokio::time::sleep(Duration::from_secs(5)).await;
-                        continue;
-                    }
-                }
-        }});
-        Box::pin(futures::stream::unfold(rx, |mut rx| async move {
-            let item = rx.recv().await;
-            if let Some(item) = item {
-                Some((item, rx))
-            } else {
-                None
-            }
-        }))
-    }
-}
-
 /// Client mode - receives a file
 async fn receive(content: &str) -> Result<()> {
     let content = HashAndFormat::from_str(content).context("invalid content")?;
@@ -243,7 +188,7 @@ async fn main() -> Result<()> {
             println!("Usage: sendme4 <command> [args]");
             println!("Commands:");
             println!("  share <dir_path>   Share a directory");
-            println!("  receive <ticket>   Receive a directory");
+            println!("  receive <hash>     Receive a directory");
             process::exit(1);
         }
     }

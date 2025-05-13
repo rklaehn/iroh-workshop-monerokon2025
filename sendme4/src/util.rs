@@ -1,11 +1,12 @@
 use std::{
     env,
     path::{Component, Path, PathBuf},
-    str::FromStr,
+    str::FromStr, time::Duration,
 };
 
 use anyhow::{Context, Result};
 use futures::StreamExt;
+use iroh::{Endpoint, NodeId};
 use iroh_base::SecretKey;
 use iroh_blobs::{
     api::{Store, TempTag},
@@ -13,6 +14,7 @@ use iroh_blobs::{
     provider::Event,
     HashAndFormat,
 };
+use iroh_mainline_content_discovery::protocol::{Query, QueryFlags};
 use rand::{thread_rng, Rng};
 use tokio::sync::mpsc;
 use tracing::info;
@@ -240,4 +242,63 @@ pub fn dump_provider_events() -> (
         }
     });
     (dump_task, tx)
+}
+
+
+#[derive(Debug)]
+pub struct TrackerDiscovery {
+    endpoint: Endpoint,
+    tracker: NodeId,
+}
+
+impl TrackerDiscovery {
+    pub fn new(endpoint: Endpoint, tracker: NodeId) -> Self {
+        Self { endpoint, tracker }
+    }
+}
+
+impl iroh_blobs::api::downloader::ContentDiscovery for TrackerDiscovery {
+    fn find_providers(&self, content: HashAndFormat) -> futures::stream::BoxStream<'static, NodeId> {
+        let content = content.to_string();
+        let (tx, rx) = tokio::sync::mpsc::channel(10);
+        let ep = self.endpoint.clone();
+        let tracker = self.tracker.clone();
+        tokio::spawn(async move {
+            loop {
+                println!("Connecting to tracker: {}", tracker);
+                let Ok(conn) = ep.connect(tracker, iroh_mainline_content_discovery::protocol::ALPN).await else {
+                    println!("Failed to connect to tracker");
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    continue;
+                };
+                let query = Query {
+                    content: content.parse().unwrap(),
+                    flags: QueryFlags { complete: true, verified: true },
+                };
+                println!("Querying tracker: {:?}", query);
+                match iroh_mainline_content_discovery::query_iroh(conn, query).await {
+                    Ok(result) => {
+                        println!("Received query result: {:?}", result);
+                        for announce in result.hosts {
+                            if tx.send(announce.host).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    Err(cause) => {
+                        println!("Failed to send query {:?}", cause);
+                        tokio::time::sleep(Duration::from_secs(5)).await;
+                        continue;
+                    }
+                }
+        }});
+        Box::pin(futures::stream::unfold(rx, |mut rx| async move {
+            let item = rx.recv().await;
+            if let Some(item) = item {
+                Some((item, rx))
+            } else {
+                None
+            }
+        }))
+    }
 }
