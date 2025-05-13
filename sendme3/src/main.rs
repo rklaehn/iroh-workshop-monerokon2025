@@ -118,10 +118,7 @@ async fn receive(tickets: Vec<String>) -> Result<()> {
     let store = FsStore::load(create_recv_dir(content)?).await?;
 
     // Create an endpoint
-    let ep = Endpoint::builder()
-        .alpns(vec![iroh_blobs::ALPN.to_vec()])
-        .bind()
-        .await?;
+    let ep = Endpoint::builder().bind().await?;
 
     // add the connection information contained in the tickets to the endpoint
     for ticket in tickets {

@@ -87,10 +87,7 @@ async fn receive(target: &str, ticket: &str) -> Result<()> {
     let store = FsStore::load(create_recv_dir(ticket.hash_and_format())?).await?;
 
     // Create an endpoint
-    let ep = Endpoint::builder()
-        .alpns(vec![iroh_blobs::ALPN.to_vec()])
-        .bind()
-        .await?;
+    let ep = Endpoint::builder().bind().await?;
 
     // Connect to the node
     info!("Connecting to: {:?}", ticket.node_addr());

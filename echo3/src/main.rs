@@ -78,7 +78,8 @@ async fn connect(message: &str, ticket: &str) -> Result<()> {
     let ep = Endpoint::builder()
         .add_discovery(|_| Some(discovery::pkarr::PkarrResolver::n0_dns()))
         .add_discovery(|_| discovery::pkarr::dht::DhtDiscovery::builder().build().ok())
-        .bind().await?;
+        .bind()
+        .await?;
 
     // Connect to the node
     let conn = ep.connect(ticket, echo::ECHO_ALPN).await?;

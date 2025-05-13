@@ -1,7 +1,8 @@
 use std::{
     env,
     path::{Component, Path, PathBuf},
-    str::FromStr, time::Duration,
+    str::FromStr,
+    time::Duration,
 };
 
 use anyhow::{Context, Result};
@@ -244,7 +245,6 @@ pub fn dump_provider_events() -> (
     (dump_task, tx)
 }
 
-
 #[derive(Debug)]
 pub struct TrackerDiscovery {
     endpoint: Endpoint,
@@ -258,7 +258,10 @@ impl TrackerDiscovery {
 }
 
 impl iroh_blobs::api::downloader::ContentDiscovery for TrackerDiscovery {
-    fn find_providers(&self, content: HashAndFormat) -> futures::stream::BoxStream<'static, NodeId> {
+    fn find_providers(
+        &self,
+        content: HashAndFormat,
+    ) -> futures::stream::BoxStream<'static, NodeId> {
         let content = content.to_string();
         let (tx, rx) = tokio::sync::mpsc::channel(10);
         let ep = self.endpoint.clone();
@@ -266,14 +269,20 @@ impl iroh_blobs::api::downloader::ContentDiscovery for TrackerDiscovery {
         tokio::spawn(async move {
             loop {
                 println!("Connecting to tracker: {}", tracker);
-                let Ok(conn) = ep.connect(tracker, iroh_mainline_content_discovery::protocol::ALPN).await else {
+                let Ok(conn) = ep
+                    .connect(tracker, iroh_mainline_content_discovery::protocol::ALPN)
+                    .await
+                else {
                     println!("Failed to connect to tracker");
                     tokio::time::sleep(Duration::from_secs(5)).await;
                     continue;
                 };
                 let query = Query {
                     content: content.parse().unwrap(),
-                    flags: QueryFlags { complete: true, verified: true },
+                    flags: QueryFlags {
+                        complete: true,
+                        verified: true,
+                    },
                 };
                 println!("Querying tracker: {:?}", query);
                 match iroh_mainline_content_discovery::query_iroh(conn, query).await {
@@ -291,7 +300,8 @@ impl iroh_blobs::api::downloader::ContentDiscovery for TrackerDiscovery {
                         continue;
                     }
                 }
-        }});
+            }
+        });
         Box::pin(futures::stream::unfold(rx, |mut rx| async move {
             let item = rx.recv().await;
             if let Some(item) = item {

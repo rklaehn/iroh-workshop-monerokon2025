@@ -2,15 +2,18 @@ use std::{env, ops::Deref, path::PathBuf, process, str::FromStr, time::Duration}
 
 use anyhow::{ensure, Context, Result};
 use futures::StreamExt;
-use iroh::{protocol::Router, Endpoint, NodeId, SecretKey};
+use iroh::{discovery, protocol::Router, Endpoint, NodeId, SecretKey};
 use iroh_blobs::{
     api::downloader::{DownloadOptions, SplitStrategy},
     format::collection::Collection,
     net_protocol::Blobs,
     store::fs::FsStore,
-    ticket::BlobTicket, HashAndFormat,
+    ticket::BlobTicket,
+    HashAndFormat,
 };
-use iroh_mainline_content_discovery::protocol::{AbsoluteTime, Announce, AnnounceKind, Query, QueryFlags, SignedAnnounce};
+use iroh_mainline_content_discovery::protocol::{
+    AbsoluteTime, Announce, AnnounceKind, Query, QueryFlags, SignedAnnounce,
+};
 use tracing::{info, trace, warn};
 use util::{create_recv_dir, create_send_dir, TrackerDiscovery};
 
@@ -35,13 +38,18 @@ async fn announce_task(content: HashAndFormat, ep: Endpoint, secret_key: SecretK
         };
         let signed_announce = SignedAnnounce::new(announce, &secret_key)?;
         println!("Connecting to tracker: {}", tracker);
-        let Ok(connection) = ep.connect(tracker, iroh_mainline_content_discovery::protocol::ALPN).await else {
+        let Ok(connection) = ep
+            .connect(tracker, iroh_mainline_content_discovery::protocol::ALPN)
+            .await
+        else {
             warn!("Failed to connect to tracker");
             tokio::time::sleep(Duration::from_secs(5)).await;
             continue;
         };
         println!("Announcing: {:?}", signed_announce);
-        if let Err(cause) = iroh_mainline_content_discovery::announce_iroh(connection, signed_announce).await {
+        if let Err(cause) =
+            iroh_mainline_content_discovery::announce_iroh(connection, signed_announce).await
+        {
             warn!("Failed to send announce {:?}", cause);
             tokio::time::sleep(Duration::from_secs(5)).await;
             continue;
@@ -89,7 +97,11 @@ async fn share(path: PathBuf) -> Result<()> {
     println!("Full address: {:?}", addr);
 
     let tag = util::import(absolute_path.clone(), &blobs).await?;
-    let announce_task = tokio::spawn(announce_task(*tag.hash_and_format(), ep.clone(), secret_key));
+    let announce_task = tokio::spawn(announce_task(
+        *tag.hash_and_format(),
+        ep.clone(),
+        secret_key,
+    ));
     let ticket = BlobTicket::new(addr, *tag.hash(), tag.format());
     println!("Sharing {}", absolute_path.display());
     println!("Hash: {}", tag.hash());
@@ -136,9 +148,8 @@ async fn receive(content: &str) -> Result<()> {
 
     // Create an endpoint
     let ep = Endpoint::builder()
-        .discovery_n0()
-        .discovery_dht()
-        .alpns(vec![iroh_blobs::ALPN.to_vec()])
+        .add_discovery(|_| Some(discovery::pkarr::PkarrResolver::n0_dns()))
+        .add_discovery(|_| discovery::pkarr::dht::DhtDiscovery::builder().build().ok())
         .bind()
         .await?;
 
