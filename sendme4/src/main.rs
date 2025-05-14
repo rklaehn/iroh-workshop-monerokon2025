@@ -4,7 +4,10 @@ use anyhow::{ensure, Context, Result};
 use futures::StreamExt;
 use iroh::{discovery, protocol::Router, Endpoint, NodeId, SecretKey};
 use iroh_blobs::{
-    api::downloader::{DownloadOptions, SplitStrategy},
+    api::{
+        blobs,
+        downloader::{DownloadOptions, SplitStrategy},
+    },
     format::collection::Collection,
     net_protocol::Blobs,
     store::fs::FsStore,
@@ -79,7 +82,8 @@ async fn share(path: PathBuf) -> Result<()> {
     let secret_key = util::get_or_generate_secret_key()?;
 
     // Create a blob store
-    let blobs = FsStore::load(create_send_dir()?).await?;
+    let blobs_path = create_send_dir()?;
+    let blobs = FsStore::load(&blobs_path).await?;
 
     // Create an endpoint and print the node ID
     let ep = Endpoint::builder()
@@ -135,6 +139,9 @@ async fn share(path: PathBuf) -> Result<()> {
     dump_task.abort();
     announce_task.abort();
 
+    // Remove the blobs directory
+    tokio::fs::remove_dir_all(blobs_path).await?;
+
     Ok(())
 }
 
@@ -143,7 +150,8 @@ async fn receive(content: &str) -> Result<()> {
     let content = HashAndFormat::from_str(content).context("invalid content")?;
 
     // Create a blob store
-    let store = FsStore::load(create_recv_dir(content)?).await?;
+    let blobs_path = create_recv_dir(content)?;
+    let store = FsStore::load(&blobs_path).await?;
 
     // Create an endpoint
     let ep = Endpoint::builder()
@@ -173,6 +181,8 @@ async fn receive(content: &str) -> Result<()> {
     ep.close().await;
     // shutdown the store to sync to disk
     store.shutdown().await?;
+    // Remove the blobs directory
+    tokio::fs::remove_dir_all(blobs_path).await?;
     Ok(())
 }
 

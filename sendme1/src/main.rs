@@ -2,7 +2,9 @@ use std::{env, path::PathBuf, process, str::FromStr};
 
 use anyhow::{ensure, Context, Result};
 use iroh::{protocol::Router, Endpoint};
-use iroh_blobs::{net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket, util::sink};
+use iroh_blobs::{
+    api::blobs, net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket, util::sink,
+};
 use tracing::info;
 use util::{crate_name, create_recv_dir, create_send_dir};
 
@@ -28,13 +30,11 @@ async fn share(path: PathBuf) -> Result<()> {
     let secret_key = util::get_or_generate_secret_key()?;
 
     // Create a blob store
-    let blobs = FsStore::load(create_send_dir()?).await?;
+    let blobs_path = create_send_dir()?;
+    let blobs = FsStore::load(&blobs_path).await?;
 
     // Create an endpoint and print the node ID
-    let ep = Endpoint::builder()
-        .secret_key(secret_key)
-        .bind()
-        .await?;
+    let ep = Endpoint::builder().secret_key(secret_key).bind().await?;
 
     let node_id = ep.node_id();
     let addr = ep.node_addr().await?;
@@ -67,6 +67,7 @@ async fn share(path: PathBuf) -> Result<()> {
 
     // Gracefully shut down the router
     router.shutdown().await?;
+    tokio::fs::remove_dir_all(blobs_path).await?;
 
     Ok(())
 }
@@ -83,7 +84,8 @@ async fn receive(target: &str, ticket: &str) -> Result<()> {
     info!("Connecting to: {:?}", ticket.node_addr());
 
     // Create a blob store
-    let store = FsStore::load(create_recv_dir(ticket.hash_and_format())?).await?;
+    let blobs_path = create_recv_dir(ticket.hash_and_format())?;
+    let store = FsStore::load(&blobs_path).await?;
 
     // Create an endpoint
     let ep = Endpoint::builder().bind().await?;
@@ -107,6 +109,8 @@ async fn receive(target: &str, ticket: &str) -> Result<()> {
     ep.close().await;
     // shutdown the store to sync to disk
     store.shutdown().await?;
+    // Remove the blobs directory
+    tokio::fs::remove_dir_all(blobs_path).await?;
 
     Ok(())
 }

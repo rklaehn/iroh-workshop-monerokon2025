@@ -4,7 +4,10 @@ use anyhow::{ensure, Context, Result};
 use futures::StreamExt;
 use iroh::{protocol::Router, Endpoint};
 use iroh_blobs::{
-    api::downloader::{DownloadOptions, Shuffled, SplitStrategy},
+    api::{
+        blobs,
+        downloader::{DownloadOptions, Shuffled, SplitStrategy},
+    },
     format::collection::Collection,
     net_protocol::Blobs,
     store::fs::FsStore,
@@ -35,13 +38,11 @@ async fn share(path: PathBuf) -> Result<()> {
     let secret_key = util::get_or_generate_secret_key()?;
 
     // Create a blob store
-    let blobs = FsStore::load(create_send_dir()?).await?;
+    let blobs_path = create_send_dir()?;
+    let blobs = FsStore::load(&blobs_path).await?;
 
     // Create an endpoint and print the node ID
-    let ep = Endpoint::builder()
-        .secret_key(secret_key)
-        .bind()
-        .await?;
+    let ep = Endpoint::builder().secret_key(secret_key).bind().await?;
 
     let node_id = ep.node_id();
     let addr = ep.node_addr().await?;
@@ -83,6 +84,9 @@ async fn share(path: PathBuf) -> Result<()> {
     // Abort the dump task
     dump_task.abort();
 
+    // Remove the blobs directory
+    tokio::fs::remove_dir_all(blobs_path).await?;
+
     Ok(())
 }
 
@@ -114,7 +118,8 @@ async fn receive(tickets: Vec<String>) -> Result<()> {
         .collect::<BTreeSet<_>>();
 
     // Create a blob store
-    let store = FsStore::load(create_recv_dir(content)?).await?;
+    let blobs_path = create_recv_dir(content.clone())?;
+    let store = FsStore::load(&blobs_path).await?;
 
     // Create an endpoint
     let ep = Endpoint::builder().bind().await?;
@@ -146,6 +151,8 @@ async fn receive(tickets: Vec<String>) -> Result<()> {
     ep.close().await;
     // shutdown the store to sync to disk
     store.shutdown().await?;
+    // Remove the blobs directory
+    tokio::fs::remove_dir_all(blobs_path).await?;
     Ok(())
 }
 
