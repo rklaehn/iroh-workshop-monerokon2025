@@ -5,7 +5,6 @@ use futures::StreamExt;
 use iroh::{protocol::Router, Endpoint};
 use iroh_blobs::{
     api::{
-        blobs,
         downloader::{DownloadOptions, Shuffled, SplitStrategy},
     },
     format::collection::Collection,
@@ -69,8 +68,7 @@ async fn share(path: PathBuf) -> Result<()> {
             iroh_blobs::ALPN,
             Blobs::new(&blobs, ep.clone(), Some(dump_sender)),
         )
-        .spawn()
-        .await?;
+        .spawn();
 
     println!("Server is running. Press Ctrl+C to stop...");
 

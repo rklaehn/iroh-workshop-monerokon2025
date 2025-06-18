@@ -15,7 +15,7 @@ use iroh_blobs::{
     provider::Event,
     HashAndFormat,
 };
-use iroh_mainline_content_discovery::protocol::{Query, QueryFlags};
+use iroh_content_discovery::protocol::{Query, QueryFlags};
 use rand::{thread_rng, Rng};
 use tokio::sync::mpsc;
 use tracing::info;
@@ -96,7 +96,7 @@ pub async fn import(path: PathBuf, db: &Store) -> Result<TempTag> {
     // we must also keep the tags around so the data does not get gced.
     let (collection, tags) = names_and_tags
         .into_iter()
-        .map(|(name, tag)| ((name, *tag.hash()), tag))
+        .map(|(name, tag)| ((name, tag.hash), tag))
         .unzip::<_, _, Collection, Vec<_>>();
     let temp_tag = collection.store(db).await?;
     // now that the collection is stored, we can drop the tags
@@ -269,15 +269,6 @@ impl iroh_blobs::api::downloader::ContentDiscovery for TrackerDiscovery {
         let tracker = self.tracker.clone();
         tokio::spawn(async move {
             loop {
-                println!("Connecting to tracker: {}", tracker);
-                let Ok(conn) = ep
-                    .connect(tracker, iroh_mainline_content_discovery::protocol::ALPN)
-                    .await
-                else {
-                    println!("Failed to connect to tracker");
-                    tokio::time::sleep(Duration::from_secs(5)).await;
-                    continue;
-                };
                 let query = Query {
                     content: content.parse().unwrap(),
                     flags: QueryFlags {
@@ -286,10 +277,10 @@ impl iroh_blobs::api::downloader::ContentDiscovery for TrackerDiscovery {
                     },
                 };
                 println!("Querying tracker: {:?}", query);
-                match iroh_mainline_content_discovery::query_iroh(conn, query).await {
-                    Ok(result) => {
-                        println!("Received query result: {:?}", result);
-                        for announce in result.hosts {
+                match iroh_content_discovery::query(&ep, tracker, query).await {
+                    Ok(announces) => {
+                        println!("Received query result: {:?}", announces);
+                        for announce in announces {
                             if tx.send(announce.host).await.is_err() {
                                 break;
                             }

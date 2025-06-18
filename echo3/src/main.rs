@@ -17,7 +17,6 @@ async fn accept() -> Result<()> {
 
     // Create an endpoint and print the node ID
     let ep = Endpoint::builder()
-        .alpns(vec![echo::ECHO_ALPN.to_vec()])
         .secret_key(secret_key)
         .discovery_n0()
         .discovery_dht()
@@ -50,8 +49,7 @@ async fn accept() -> Result<()> {
     // Create a router with the endpoint
     let router = Router::builder(ep)
         .accept(echo::ECHO_ALPN, echo::EchoProtocol)
-        .spawn()
-        .await?;
+        .spawn();
 
     println!("Server is running. Press Ctrl+C to stop...");
 

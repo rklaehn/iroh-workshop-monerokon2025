@@ -3,7 +3,7 @@ use std::{env, path::PathBuf, process, str::FromStr};
 use anyhow::{ensure, Context, Result};
 use iroh::{protocol::Router, Endpoint};
 use iroh_blobs::{
-    api::blobs, net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket, util::sink,
+    net_protocol::Blobs, store::fs::FsStore, ticket::BlobTicket,
 };
 use tracing::info;
 use util::{crate_name, create_recv_dir, create_send_dir};
@@ -43,9 +43,9 @@ async fn share(path: PathBuf) -> Result<()> {
     println!("Full address: {:?}", addr);
 
     let tag = blobs.add_path(&absolute_path).await?;
-    let ticket = BlobTicket::new(addr, *tag.hash(), tag.format());
+    let ticket = BlobTicket::new(addr, tag.hash, tag.format);
     println!("Sharing file: {}", absolute_path.display());
-    println!("Hash: {}", tag.hash());
+    println!("Hash: {}", tag.hash);
     println!(
         "To receive, use: {} receive <target> {}",
         env::args().next().unwrap_or_default(),
@@ -56,8 +56,7 @@ async fn share(path: PathBuf) -> Result<()> {
     // Create a router with the endpoint
     let router = Router::builder(ep.clone())
         .accept(iroh_blobs::ALPN, Blobs::new(&blobs, ep.clone(), None))
-        .spawn()
-        .await?;
+        .spawn();
 
     println!("Server is running. Press Ctrl+C to stop...");
 
@@ -98,7 +97,7 @@ async fn receive(target: &str, ticket: &str) -> Result<()> {
     info!("Getting blob");
     let stats = store
         .remote()
-        .fetch(conn, ticket.clone(), sink::Drain)
+        .fetch(conn, ticket.clone())
         .await?;
     info!("Exporting file");
     let size = store.export(ticket.hash(), target.clone()).await?;

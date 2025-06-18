@@ -93,7 +93,7 @@ pub async fn import(path: PathBuf, db: &Store) -> Result<TempTag> {
     // we must also keep the tags around so the data does not get gced.
     let (collection, tags) = names_and_tags
         .into_iter()
-        .map(|(name, tag)| ((name, *tag.hash()), tag))
+        .map(|(name, tag)| ((name, tag.hash), tag))
         .unzip::<_, _, Collection, Vec<_>>();
     let temp_tag = collection.store(db).await?;
     // now that the collection is stored, we can drop the tags

@@ -1414,7 +1414,7 @@ checksum = "469fb0b9cefa57e3ef31275ee7cacb78f2fdca44e4765491884a2b119d4eb130"
 
 [[package]]
 name = "iroh"
-version = "0.34.1"
+version = "0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37432887a6836e7a832fccb121b5f0ee6cd953c506f99b0278bdbedf8dee0e88"
 dependencies = [
@@ -1473,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-base"
-version = "0.34.1"
+version = "0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3cd952d9e25e521d6aeb5b79f2fe32a0245da36aae3569e50f6010b38a5f0923"
 dependencies = [
@@ -1558,7 +1558,7 @@ dependencies = [
 
 [[package]]
 name = "iroh-relay"
-version = "0.34.1"
+version = "0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40d2d7b50d999922791c6c14c25e13f55711e182618cb387bafa0896ffe0b930"
 dependencies = [

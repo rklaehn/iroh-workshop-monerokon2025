@@ -5,7 +5,6 @@ use futures::StreamExt;
 use iroh::{discovery, protocol::Router, Endpoint, NodeId, SecretKey};
 use iroh_blobs::{
     api::{
-        blobs,
         downloader::{DownloadOptions, SplitStrategy},
     },
     format::collection::Collection,
@@ -14,7 +13,7 @@ use iroh_blobs::{
     ticket::BlobTicket,
     HashAndFormat,
 };
-use iroh_mainline_content_discovery::protocol::{
+use iroh_content_discovery::protocol::{
     AbsoluteTime, Announce, AnnounceKind, SignedAnnounce,
 };
 use tracing::{info, trace, warn};
@@ -40,18 +39,9 @@ async fn announce_task(content: HashAndFormat, ep: Endpoint, secret_key: SecretK
             timestamp: AbsoluteTime::now(),
         };
         let signed_announce = SignedAnnounce::new(announce, &secret_key)?;
-        println!("Connecting to tracker: {}", tracker);
-        let Ok(connection) = ep
-            .connect(tracker, iroh_mainline_content_discovery::protocol::ALPN)
-            .await
-        else {
-            warn!("Failed to connect to tracker");
-            tokio::time::sleep(Duration::from_secs(5)).await;
-            continue;
-        };
         println!("Announcing: {:?}", signed_announce);
         if let Err(cause) =
-            iroh_mainline_content_discovery::announce_iroh(connection, signed_announce).await
+            iroh_content_discovery::announce(&ep, tracker, signed_announce).await
         {
             warn!("Failed to send announce {:?}", cause);
             tokio::time::sleep(Duration::from_secs(5)).await;
@@ -123,8 +113,7 @@ async fn share(path: PathBuf) -> Result<()> {
             iroh_blobs::ALPN,
             Blobs::new(&blobs, ep.clone(), Some(dump_sender)),
         )
-        .spawn()
-        .await?;
+        .spawn();
 
     println!("Server is running. Press Ctrl+C to stop...");
 

@@ -1,4 +1,6 @@
-# Iroh and iroh-blobs workshop for JOnTheBeach 2025
+# Iroh and iroh-blobs workshop for MoneroKon 2025
+
+The workshop is just one hour, so this will have to be very minimal.
 
 The workshop is structured into multiple exercises. Each exercise is a
 self-contained example and can be run using cargon run -p <lessonname>.

@@ -38,8 +38,7 @@ async fn accept() -> Result<()> {
     // Create a router with the endpoint
     let router = Router::builder(ep)
         .accept(echo::ECHO_ALPN, echo::EchoProtocol)
-        .spawn()
-        .await?;
+        .spawn();
 
     println!("Server is running. Press Ctrl+C to stop...");
 
