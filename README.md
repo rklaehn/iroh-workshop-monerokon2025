@@ -1,6 +1,8 @@
 # Iroh and iroh-blobs workshop for MoneroKon 2025
 
-The workshop is just one hour, so this will have to be very minimal.
+Slides: <https://docs.google.com/presentation/d/e/2PACX-1vR6Zh-yEPxU_-Q3ZRjUCrA96FdH-hxrmNMabvghKH9QotQ8hSGos-jV9lr_EEyKYlwzhooeL1xtyLAs/pub?start=false&loop=false&delayms=3000>
+
+Workshop walkthrough: <https://hackmd.io/RkVPciqHTH2eekd29pQYyQ?view>
 
 The workshop is structured into multiple exercises. Each exercise is a
 self-contained example and can be run using cargon run -p <lessonname>.

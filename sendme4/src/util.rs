@@ -10,7 +10,7 @@ use futures::StreamExt;
 use iroh::{Endpoint, NodeId};
 use iroh_base::SecretKey;
 use iroh_blobs::{
-    api::{Store, TempTag},
+    api::{downloader::ContentDiscovery, Store, TempTag},
     format::collection::Collection,
     provider::Event,
     HashAndFormat,
@@ -258,7 +258,7 @@ impl TrackerDiscovery {
     }
 }
 
-impl iroh_blobs::api::downloader::ContentDiscovery for TrackerDiscovery {
+impl ContentDiscovery for TrackerDiscovery {
     fn find_providers(
         &self,
         content: HashAndFormat,
