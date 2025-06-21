@@ -4,9 +4,11 @@
 
 [Workshop walkthrough](https://hackmd.io/RkVPciqHTH2eekd29pQYyQ?view)
 
-[Iroh doctor](https://crates.io/search?q=iroh-doctor)
+[Iroh doctor](https://crates.io/crates/iroh-doctor)
 
 iroh-doctor can be used to check connection status and performance. Install with `cargo install iroh-doctor`.
+
+<iroh.computer/discord> channel `#workshop`
 
 # Exercises
 
