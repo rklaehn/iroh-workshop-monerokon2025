@@ -8,9 +8,20 @@
 
 iroh-doctor can be used to check connection status and performance. Install with `cargo install iroh-doctor`.
 
+# Chat
+
 <iroh.computer/discord> channel `#workshop`
 
 matrix room, for those that don't like discord: `#iroh-workshop:matrix.org`
+
+# Wifi
+
+You can use any wifi. You will *always* be able to establish a connection as long as you are connected to the internet in some way.
+
+I brought my own fast wifi for sending around a lot of data:
+
+SSID: `iroh` or `iroh-5g`
+Pass: `movethebytes`
 
 # Exercises
 
