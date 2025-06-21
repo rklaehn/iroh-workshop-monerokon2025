@@ -10,6 +10,8 @@ iroh-doctor can be used to check connection status and performance. Install with
 
 <iroh.computer/discord> channel `#workshop`
 
+matrix room, for those that don't like discord: `#iroh-workshop:matrix.org`
+
 # Exercises
 
 The workshop is structured into multiple exercises. Each exercise is a
